@@ -14,12 +14,12 @@ if not exist %PYTHON_EXE% (
 
 echo Installing required dependencies...
 %PYTHON_EXE% -m pip install --upgrade pip
-%PYTHON_EXE% -m pip install opencv-python deepface tf-keras numpy
+%PYTHON_EXE% -m pip install opencv-python deepface tf-keras numpy customtkinter pillow
 
 echo.
-echo Starting the application...
+echo Starting the personalized desktop application...
 echo.
-%PYTHON_EXE% emotion_analyzer.py
+%PYTHON_EXE% app_gui.py
 
 echo.
 echo Application closed. Detailed report should be generated in analysis_report.md
