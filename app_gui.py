@@ -31,6 +31,69 @@ COLORS = {
     'Analyzing...': (255, 255, 255)
 }
 
+BEHAVIOR_MAP = {
+    "Man": {
+        "angry": {
+            "high": "HIGH RISK: Intense male aggression detected (Over 70%). Potential confrontation likely.",
+            "low": "NOTICE: Male displaying mild frustration or annoyance."
+        },
+        "sad": {
+            "high": "ALERT: Male exhibiting severe distress, disappointment or depression.",
+            "low": "NOTICE: Male displaying signs of fatigue or slight sadness."
+        },
+        "happy": {
+            "high": "INSIGHT: Male is highly engaged, agreeable, and expressing extreme joy.",
+            "low": "INSIGHT: Male is displaying mild contentment or polite agreement."
+        },
+        "surprise": {
+            "high": "INSIGHT: Male is highly shocked or startled.",
+            "low": "INSIGHT: Male is mildly surprised or processing unexpected information."
+        },
+        "fear": {
+            "high": "ALERT: Male is exhibiting intense fear, panic, or anxiety.",
+            "low": "NOTICE: Male is displaying mild apprehension."
+        },
+        "disgust": {
+            "high": "NOTICE: Male is showing strong aversion or disgust.",
+            "low": "NOTICE: Male is mildly displeased."
+        },
+        "neutral": {
+            "high": "INSIGHT: Male is completely disengaged and unreactive. Very low emotional pulse.",
+            "low": "INSIGHT: Male is calm and composed."
+        }
+    },
+    "Woman": {
+        "angry": {
+            "high": "HIGH RISK: Intense female aggression or anger detected (Over 70%).",
+            "low": "NOTICE: Female displaying mild frustration or annoyance."
+        },
+        "sad": {
+            "high": "ALERT: Female exhibiting severe distress, disappointment or depression.",
+            "low": "NOTICE: Female displaying signs of fatigue or slight sadness."
+        },
+        "happy": {
+            "high": "INSIGHT: Female is highly engaged, agreeable, and expressing extreme joy.",
+            "low": "INSIGHT: Female is displaying mild contentment or polite agreement."
+        },
+        "surprise": {
+            "high": "INSIGHT: Female is highly shocked or startled.",
+            "low": "INSIGHT: Female is mildly surprised or processing unexpected information."
+        },
+        "fear": {
+            "high": "ALERT: Female is exhibiting intense fear, panic, or anxiety.",
+            "low": "NOTICE: Female is displaying mild apprehension."
+        },
+        "disgust": {
+            "high": "NOTICE: Female is showing strong aversion or disgust.",
+            "low": "NOTICE: Female is mildly displeased."
+        },
+        "neutral": {
+            "high": "INSIGHT: Female is completely disengaged and unreactive. Very low emotional pulse.",
+            "low": "INSIGHT: Female is calm and composed."
+        }
+    }
+}
+
 if not os.path.exists("recordings"):
     os.makedirs("recordings")
 
@@ -141,9 +204,18 @@ class EmotionApp(ctk.CTk):
         self.current_ctk_image = None
         self.ai_pool = None
         
+        # Pause & Hover variables
+        self.is_paused = False
+        self.paused_frame = None
+        self.paused_faces = {}
+        self.hovered_face_id = None
+        
         # Special Mode variables
         self.presentation_mode = False
         self.presentation_stats = {'engaged': 0, 'bored': 0, 'frustrated': 0, 'total_readings': 0}
+
+        # Keyboard & Mouse Bindings
+        self.bind('<space>', self.toggle_pause)
 
         self.setup_ui()
         self.load_models()
@@ -203,6 +275,9 @@ class EmotionApp(ctk.CTk):
 
         self.video_label = ctk.CTkLabel(self.main_frame, text="Feed Offline", font=ctk.CTkFont(size=30, weight="bold"), text_color="gray")
         self.video_label.grid(row=0, column=0, sticky="nsew")
+        
+        # Bind mouse movement for hover analysis
+        self.video_label.bind('<Motion>', self.on_mouse_hover)
 
         # --- Right Sidebar (Gender & Presentation Stats) ---
         self.sidebar_right = ctk.CTkFrame(self, width=280, corner_radius=0)
@@ -240,6 +315,54 @@ class EmotionApp(ctk.CTk):
         self.bored_bar.set(0)
         self.bored_label = ctk.CTkLabel(self.pres_frame, text="Bored: 0%")
         self.bored_label.pack()
+
+        # Instructions for Spacebar
+        ctk.CTkLabel(self.sidebar_right, text="Hit SPACEBAR to pause feed & analyze", font=ctk.CTkFont(size=12, slant="italic"), text_color="gray").grid(row=9, column=0, pady=20)
+
+    def toggle_pause(self, event=None):
+        if not self.is_running: return
+        self.is_paused = not self.is_paused
+        
+        if self.is_paused:
+            self.state_label.configure(text="PAUSED - Hover to Analyze", text_color="#FFA500")
+        else:
+            self.state_label.configure(text="Monitoring Audience..." if self.presentation_mode else "Standby...", text_color="#00FF00" if self.presentation_mode else "gray")
+            self.hovered_face_id = None
+
+    def on_mouse_hover(self, event):
+        if not self.is_paused or self.paused_frame is None:
+            self.hovered_face_id = None
+            return
+            
+        fw = self.main_frame.winfo_width()
+        fh = self.main_frame.winfo_height()
+        label_w = fw - 20
+        label_h = fh - 20
+        
+        # Calculate scaled coordinates from label to original 1024x768 frame
+        scale_x = 1024.0 / max(1, label_w)
+        scale_y = 768.0 / max(1, label_h)
+        
+        vid_x = int(event.x * scale_x)
+        vid_y = int(event.y * scale_y)
+        
+        found = False
+        for fid, data in self.paused_faces.items():
+            x, y, w, h = data['box']
+            if x <= vid_x <= x + w and y <= vid_y <= y + h:
+                self.hovered_face_id = fid
+                found = True
+                break
+                
+        if not found:
+            self.hovered_face_id = None
+
+    def get_behavioral_insight(self, gender, emotion, conf):
+        if gender not in BEHAVIOR_MAP or emotion not in BEHAVIOR_MAP[gender]:
+            return "Gathering psychological insight..."
+        
+        level = "high" if conf > 70 else "low"
+        return BEHAVIOR_MAP[gender][emotion][level]
 
     def toggle_presentation_mode(self):
         if not self.presentation_mode:
@@ -281,25 +404,39 @@ class EmotionApp(ctk.CTk):
             f.write("\n".join(report))
         print("Presentation report saved to presentation_analysis.md")
 
+    def warmup_ai_worker(self):
+        """ Pre-loads TensorFlow models sequentially to prevent thread-crash on startup """
+        try:
+            print("[INFO] Pre-heating DeepFace Neural Engines...")
+            dummy_img = np.zeros((224, 224, 3), dtype=np.uint8)
+            DeepFace.analyze(dummy_img, actions=['emotion', 'gender'], enforce_detection=False, silent=True)
+            print("[INFO] Neural Engines Online.")
+        except Exception as e:
+            pass
+        finally:
+            self.ai_ready = True
+
     def toggle_stream(self):
         if not self.is_running:
             self.start_btn.configure(text="Stop Feed & Record", fg_color="#DC143C", hover_color="#B22222")
             self.video_label.configure(text="Connecting to camera...", image=None)
             self.is_running = True
+            self.is_paused = False
+            self.hovered_face_id = None
+            self.ai_ready = False
             
             self.stream = VideoStreamWidget(STREAM_URL)
             self.tracker = SimpleTracker()
             self.start_time = time.time()
             self.fps_history = []
             
-            # Use ThreadPoolExecutor for highly optimized parallel processing
             self.ai_pool = ThreadPoolExecutor(max_workers=3)
             
             self.detector_thread = threading.Thread(target=self.face_detector_worker, daemon=True)
             self.detector_thread.start()
             
-            # Start DeepFace worker
             threading.Thread(target=self.deepface_queue_manager, daemon=True).start()
+            threading.Thread(target=self.warmup_ai_worker, daemon=True).start()
             
             fourcc = cv2.VideoWriter_fourcc(*'XVID')
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -315,8 +452,12 @@ class EmotionApp(ctk.CTk):
             self.video_label.configure(image=None, text="Feed Offline")
 
     def face_detector_worker(self):
-        """ Runs cv2.dnn in a background thread """
         while self.is_running:
+            # Skip heavy detector logic if we are paused, save CPU
+            if self.is_paused:
+                time.sleep(0.1)
+                continue
+                
             status, frame = self.stream.read()
             if status and frame is not None:
                 frame = cv2.resize(frame, (1024, 768))
@@ -334,7 +475,6 @@ class EmotionApp(ctk.CTk):
                             box = detections[0, 0, i, 3:7] * np.array([iw, ih, iw, ih])
                             (startX, startY, endX, endY) = box.astype("int")
                             
-                            # Add larger 20% margin for DeepFace context to vastly improve Gender accuracy!
                             margin_x = int((endX - startX) * 0.2)
                             margin_y = int((endY - startY) * 0.2)
                             
@@ -350,7 +490,11 @@ class EmotionApp(ctk.CTk):
                     
                     current_time = time.time()
                     for fid, data in tracked_faces.items():
-                        # Reduce frequency to save CPU if there are multiple people
+                        if not self.ai_ready:
+                            data['emotion'] = 'Booting AI...'
+                            data['gender'] = 'Booting AI...'
+                            continue
+                            
                         frequency = 1.0 if len(tracked_faces) == 1 else 2.0
                         
                         if current_time - data.get('last_analyze_time', 0) > frequency:
@@ -360,22 +504,18 @@ class EmotionApp(ctk.CTk):
                                 self.tracker.analysis_queue.put_nowait((face_img, fid))
                                 data['last_analyze_time'] = current_time
 
-            # Sleep to prevent UI thread starvation and fix CPU bottleneck
             time.sleep(0.1)
 
     def deepface_queue_manager(self):
-        """ Pops from queue and submits to parallel thread pool to avoid GIL lag """
         while self.is_running:
             try:
                 face_img, face_id = self.tracker.analysis_queue.get(timeout=1.0)
                 if face_img is not None:
-                    # Submit task to true parallel worker pool
                     self.ai_pool.submit(self.run_deepface_inference, face_img, face_id)
             except queue.Empty:
                 pass
 
     def run_deepface_inference(self, face_img, face_id):
-        """ Pure parallel inference task """
         if not self.is_running: return
         try:
             result = DeepFace.analyze(face_img, actions=['emotion', 'gender'], enforce_detection=False, silent=True)
@@ -411,88 +551,171 @@ class EmotionApp(ctk.CTk):
         except Exception as e:
             pass
 
+    def draw_hover_insight(self, frame, data):
+        """ Draws a beautiful tooltip overlay on the frame when hovering over a face """
+        x, y, w, h = data['box']
+        gender = data.get('gender', 'Analyzing...')
+        emotion = data.get('emotion', 'Analyzing...')
+        emo_conf = data.get('emotion_conf', 0.0)
+        
+        insight_msg = self.get_behavioral_insight(gender, emotion, emo_conf)
+        
+        # Overlay Box Parameters - Smaller and tighter
+        box_width = 380
+        box_height = 90
+        
+        # Position below the face by default
+        oy = y + h + 15
+        if oy + box_height > 768 - 10:  # If it goes off the bottom edge, put it above the face
+            oy = max(10, y - box_height - 35) # 35 to account for the ID label above the face
+            
+        # Center horizontally with the face
+        ox = x + (w // 2) - (box_width // 2)
+        ox = max(10, min(ox, 1024 - box_width - 10)) # Keep within screen bounds
+        
+        # Create a translucent overlay
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (ox, oy), (ox + box_width, oy + box_height), (20, 20, 20), -1)
+        cv2.addWeighted(overlay, 0.85, frame, 0.15, 0, frame)
+        
+        # Draw Border
+        cv2.rectangle(frame, (ox, oy), (ox + box_width, oy + box_height), (0, 255, 255), 2)
+        
+        # Draw Header
+        title = f"SPECIAL ANALYSIS: ID {data.get('id', '?')}"
+        cv2.putText(frame, title, (ox + 15, oy + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 2)
+        
+        # Text Wrapping for Insight Message
+        words = insight_msg.split(' ')
+        lines = []
+        current_line = []
+        for word in words:
+            current_line.append(word)
+            (lw, _), _ = cv2.getTextSize(" ".join(current_line), cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+            if lw > box_width - 30:
+                current_line.pop()
+                lines.append(" ".join(current_line))
+                current_line = [word]
+        if current_line:
+            lines.append(" ".join(current_line))
+            
+        # Draw Text Lines
+        for i, line in enumerate(lines):
+            cv2.putText(frame, line, (ox + 15, oy + 50 + (i*20)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
     def update_video_ui(self):
         if not self.is_running: return
 
-        status, frame = self.stream.read()
+        if self.is_paused:
+            # If paused, render the frozen frame
+            if self.paused_frame is not None:
+                frame = self.paused_frame.copy()
+                tracked_faces = self.paused_faces
+                
+                # Dim the paused frame slightly for effect
+                overlay = frame.copy()
+                cv2.rectangle(overlay, (0, 0), (1024, 768), (0, 0, 0), -1)
+                cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
+                
+                cv2.putText(frame, "PAUSED - HOVER OVER FACES", (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 255), 3)
+            else:
+                self.after(15, self.update_video_ui)
+                return
+        else:
+            # Live Feed
+            status, frame = self.stream.read()
+            if status and frame is not None:
+                frame = cv2.resize(frame, (1024, 768))
+                self.paused_frame = frame.copy()
+                self.paused_faces = self.tracker.faces.copy()
+                tracked_faces = self.paused_faces
+            else:
+                self.after(15, self.update_video_ui)
+                return
         
-        if status and frame is not None:
-            frame = cv2.resize(frame, (1024, 768))
-            tracked_faces = self.tracker.faces.copy()
+        if not self.ai_ready and not self.is_paused:
+            # Pulsating effect for "Pre-Heating" text
+            alpha = (np.sin(time.time() * 5) + 1) / 2.0 
+            color = (int(0 * alpha), int(165 * alpha), int(255 * alpha))
+            cv2.putText(frame, "PRE-HEATING NEURAL ENGINES...", (30, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+        
+        num_people = len(tracked_faces)
+        emotion_counts = defaultdict(int)
+        gender_counts = {'Male': 0, 'Female': 0}
+        
+        for fid, data in tracked_faces.items():
+            data['id'] = fid # Inject ID for hover logic
+            x, y, w, h = data['box']
+            emotion = data['emotion']
+            gender = data.get('gender', 'Analyzing...')
+            emo_conf = data.get('emotion_conf', 0.0)
+            gen_conf = data.get('gender_conf', 0.0)
             
-            num_people = len(tracked_faces)
-            emotion_counts = defaultdict(int)
-            gender_counts = {'Male': 0, 'Female': 0}
+            color = COLORS.get(emotion, (255, 255, 255))
             
-            for fid, data in tracked_faces.items():
-                x, y, w, h = data['box']
-                emotion = data['emotion']
-                gender = data.get('gender', 'Analyzing...')
-                emo_conf = data.get('emotion_conf', 0.0)
-                gen_conf = data.get('gender_conf', 0.0)
-                
-                color = COLORS.get(emotion, (255, 255, 255))
-                
-                if emotion != 'Analyzing...': emotion_counts[emotion] += 1
-                if gender == 'Man': gender_counts['Male'] += 1
-                elif gender == 'Woman': gender_counts['Female'] += 1
+            if emotion != 'Analyzing...': emotion_counts[emotion] += 1
+            if gender == 'Man': gender_counts['Male'] += 1
+            elif gender == 'Woman': gender_counts['Female'] += 1
 
-                cv2.rectangle(frame, (x, y), (x+w, y+h), color, 3)
+            cv2.rectangle(frame, (x, y), (x+w, y+h), color, 3)
+            
+            g_str = "M" if gender == "Man" else ("F" if gender == "Woman" else "?")
+            if emotion == 'Analyzing...':
+                label = f"ID:{fid} | Loading AI Models..."
+            else:
+                label = f"ID:{fid} | {g_str} ({int(gen_conf)}%) | {emotion.upper()} ({int(emo_conf)}%)"
                 
-                g_str = "M" if gender == "Man" else ("F" if gender == "Woman" else "?")
-                if emotion == 'Analyzing...':
-                    label = f"ID:{fid} | Loading AI Models..."
-                else:
-                    label = f"ID:{fid} | {g_str} ({int(gen_conf)}%) | {emotion.upper()} ({int(emo_conf)}%)"
-                    
-                (lw, lh), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-                # Ensure label doesn't go off top of screen
-                text_y = y - 15 if y - 15 > lh else y + h + 20
-                cv2.rectangle(frame, (x, text_y - lh - 5), (x + lw + 10, text_y + 5), color, -1)
-                cv2.putText(frame, label, (x + 5, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,0), 2)
+            (lw, lh), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+            text_y = y - 15 if y - 15 > lh else y + h + 20
+            cv2.rectangle(frame, (x, text_y - lh - 5), (x + lw + 10, text_y + 5), color, -1)
+            cv2.putText(frame, label, (x + 5, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,0), 2)
+            
+            # If hovering, draw special insight box
+            if self.is_paused and self.hovered_face_id == fid:
+                self.draw_hover_insight(frame, data)
 
-            if self.video_writer:
-                self.video_writer.write(frame)
+        if not self.is_paused and self.video_writer:
+            self.video_writer.write(frame)
 
-            # Instantaneous UI FPS calculation
+        # UI Updates
+        if not self.is_paused:
             t = time.time()
             self.fps_history.append(t)
             if len(self.fps_history) > 30:
                 self.fps_history.pop(0)
             inst_fps = len(self.fps_history) / max(0.001, t - self.fps_history[0])
-
-            self.density_label.configure(text=f"Crowd Density: {num_people}")
             self.fps_label.configure(text=f"UI Performance: {inst_fps:.1f} FPS")
-            
-            self.male_count_label.configure(text=str(gender_counts['Male']))
-            self.female_count_label.configure(text=str(gender_counts['Female']))
 
-            if self.presentation_mode and self.presentation_stats['total_readings'] > 0:
-                tot = self.presentation_stats['total_readings']
-                eng = self.presentation_stats['engaged'] / tot
-                bor = self.presentation_stats['bored'] / tot
-                self.engaged_bar.set(eng)
-                self.bored_bar.set(bor)
-                self.engaged_label.configure(text=f"Engaged: {int(eng*100)}%")
-                self.bored_label.configure(text=f"Bored: {int(bor*100)}%")
+        self.density_label.configure(text=f"Crowd Density: {num_people}")
+        self.male_count_label.configure(text=str(gender_counts['Male']))
+        self.female_count_label.configure(text=str(gender_counts['Female']))
 
-            summary_text = ""
-            for emo, count in emotion_counts.items():
-                summary_text += f"{emo.capitalize()}: {count} people\n"
-            
-            self.emotion_summary.configure(state="normal")
-            self.emotion_summary.delete("0.0", "end")
-            self.emotion_summary.insert("0.0", summary_text if summary_text else "Tracking...")
-            self.emotion_summary.configure(state="disabled")
+        if self.presentation_mode and self.presentation_stats['total_readings'] > 0:
+            tot = self.presentation_stats['total_readings']
+            eng = self.presentation_stats['engaged'] / tot
+            bor = self.presentation_stats['bored'] / tot
+            self.engaged_bar.set(eng)
+            self.bored_bar.set(bor)
+            self.engaged_label.configure(text=f"Engaged: {int(eng*100)}%")
+            self.bored_label.configure(text=f"Bored: {int(bor*100)}%")
 
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            pil_image = Image.fromarray(frame_rgb)
-            
-            fw = self.main_frame.winfo_width()
-            fh = self.main_frame.winfo_height()
-            if fw > 10 and fh > 10:
-                self.current_ctk_image = ctk.CTkImage(light_image=pil_image, dark_image=pil_image, size=(fw-20, fh-20))
-                self.video_label.configure(image=self.current_ctk_image, text="")
+        summary_text = ""
+        for emo, count in emotion_counts.items():
+            summary_text += f"{emo.capitalize()}: {count} people\n"
+        
+        self.emotion_summary.configure(state="normal")
+        self.emotion_summary.delete("0.0", "end")
+        self.emotion_summary.insert("0.0", summary_text if summary_text else "Tracking...")
+        self.emotion_summary.configure(state="disabled")
+
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        pil_image = Image.fromarray(frame_rgb)
+        
+        fw = self.main_frame.winfo_width()
+        fh = self.main_frame.winfo_height()
+        if fw > 10 and fh > 10:
+            self.current_ctk_image = ctk.CTkImage(light_image=pil_image, dark_image=pil_image, size=(fw-20, fh-20))
+            self.video_label.configure(image=self.current_ctk_image, text="")
 
         self.after(15, self.update_video_ui)
 
