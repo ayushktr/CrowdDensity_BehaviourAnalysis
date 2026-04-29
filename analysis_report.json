@@ -1,60 +1,7 @@
 {
     "metadata": {
-        "generated_on": "2026-04-29T19:48:59.113789",
+        "generated_on": "2026-04-29T20:56:46.102870",
         "total_unique_people": 1
     },
-    "people": {
-        "35": {
-            "dominant_emotion": "neutral",
-            "dominant_gender": "Man",
-            "total_frames_analyzed": 9,
-            "timeline": [
-                {
-                    "timestamp": "2026-04-29T19:48:50.169649",
-                    "emotion": "sad",
-                    "gender": "Man"
-                },
-                {
-                    "timestamp": "2026-04-29T19:48:51.258814",
-                    "emotion": "neutral",
-                    "gender": "Man"
-                },
-                {
-                    "timestamp": "2026-04-29T19:48:52.371722",
-                    "emotion": "sad",
-                    "gender": "Man"
-                },
-                {
-                    "timestamp": "2026-04-29T19:48:53.486504",
-                    "emotion": "sad",
-                    "gender": "Man"
-                },
-                {
-                    "timestamp": "2026-04-29T19:48:54.612625",
-                    "emotion": "sad",
-                    "gender": "Man"
-                },
-                {
-                    "timestamp": "2026-04-29T19:48:55.699487",
-                    "emotion": "neutral",
-                    "gender": "Man"
-                },
-                {
-                    "timestamp": "2026-04-29T19:48:56.764498",
-                    "emotion": "neutral",
-                    "gender": "Woman"
-                },
-                {
-                    "timestamp": "2026-04-29T19:48:57.847378",
-                    "emotion": "neutral",
-                    "gender": "Man"
-                },
-                {
-                    "timestamp": "2026-04-29T19:48:58.952922",
-                    "emotion": "neutral",
-                    "gender": "Man"
-                }
-            ]
-        }
-    }
+    "people": {}
 }

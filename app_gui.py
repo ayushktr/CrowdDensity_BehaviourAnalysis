@@ -184,7 +184,7 @@ class EmotionApp(ctk.CTk):
         super().__init__()
 
         # Window Setup
-        self.title("NeuroSight Pro - AI Behavioral Analytics")
+        self.title("Human Behavior Analysis")
         self.geometry("1600x900")
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
@@ -383,26 +383,30 @@ class EmotionApp(ctk.CTk):
         bored_pct = (self.presentation_stats['bored'] / total) * 100
         frust_pct = (self.presentation_stats['frustrated'] / total) * 100
         
-        report = [
-            "# Presentation Psychological Analysis",
-            f"**Total Audience Emotional Pulses Analyzed**: {total}",
-            f"- **Highly Engaged/Interested**: {engaged_pct:.1f}%",
-            f"- **Bored/Disengaged**: {bored_pct:.1f}%",
-            f"- **Frustrated/Confused**: {frust_pct:.1f}%",
-            "",
-            "## Summary Verdict"
-        ]
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        if not os.path.exists("reports"): os.makedirs("reports")
         
-        if engaged_pct > 60:
-            report.append("Excellent presentation! The audience was highly engaged and captivated.")
-        elif bored_pct > 40:
-            report.append("Audience showed signs of boredom. Consider adding more interactive elements or varying your tone.")
-        else:
-            report.append("Mixed reactions. The presentation held attention but lacked a strong emotional hook.")
-
-        with open("presentation_analysis.md", "w") as f:
-            f.write("\n".join(report))
-        print("Presentation report saved to presentation_analysis.md")
+        report_md = f"reports/presentation_analysis_{timestamp}.md"
+        report_csv = f"reports/presentation_analysis_{timestamp}.csv"
+        
+        # Brief Markdown
+        with open(report_md, "w") as f:
+            f.write(f"# Presentation Summary\n")
+            f.write(f"Total Readings: {total}\n")
+            f.write(f"Engaged: {engaged_pct:.1f}%\n")
+            f.write(f"Bored: {bored_pct:.1f}%\n")
+            f.write(f"Frustrated: {frust_pct:.1f}%\n")
+            
+        # Excel-compatible CSV
+        import csv
+        with open(report_csv, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Metric", "Percentage", "Total Readings"])
+            writer.writerow(["Engaged", f"{engaged_pct:.1f}%", total])
+            writer.writerow(["Bored", f"{bored_pct:.1f}%", ""])
+            writer.writerow(["Frustrated", f"{frust_pct:.1f}%", ""])
+            
+        print(f"Presentation reports saved to {report_md} and {report_csv}")
 
     def warmup_ai_worker(self):
         """ Pre-loads TensorFlow models sequentially to prevent thread-crash on startup """
@@ -722,21 +726,40 @@ class EmotionApp(ctk.CTk):
     def generate_reports(self):
         if not self.tracker: return
         print("Generating Reports...")
+        
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        if not os.path.exists("reports"): os.makedirs("reports")
+        
+        report_json = f"reports/analysis_report_{timestamp}.json"
+        report_csv = f"reports/analysis_report_{timestamp}.csv"
+        
         json_data = {"metadata": {"generated_on": datetime.datetime.now().isoformat(), "total_unique_people": len(self.tracker.faces)}, "people": {}}
         
-        for fid, data in self.tracker.faces.items():
-            history = data['history']
-            if not history: continue
-            emotions_only = [h['emotion'] for h in history]
-            dominant = max(set(emotions_only), key=emotions_only.count)
-            genders_only = [h['gender'] for h in history if h.get('gender') and h['gender'] != 'Analyzing...']
-            dom_gen = max(set(genders_only), key=genders_only.count) if genders_only else "Unknown"
-
-            json_data["people"][str(fid)] = {"dominant_emotion": dominant, "dominant_gender": dom_gen, "total_frames_analyzed": len(history), "timeline": history}
+        import csv
+        with open(report_csv, "w", newline="") as f_csv:
+            writer = csv.writer(f_csv)
+            writer.writerow(["Person ID", "Dominant Emotion", "Dominant Gender", "Frames Tracked"])
             
-        with open("analysis_report.json", "w") as f:
-            json.dump(json_data, f, indent=4)
-        print("Report Saved to analysis_report.json")
+            for fid, data in self.tracker.faces.items():
+                history = data['history']
+                if not history: continue
+                emotions_only = [h['emotion'] for h in history]
+                dominant = max(set(emotions_only), key=emotions_only.count)
+                genders_only = [h['gender'] for h in history if h.get('gender') and h['gender'] != 'Analyzing...']
+                dom_gen = max(set(genders_only), key=genders_only.count) if genders_only else "Unknown"
+
+                json_data["people"][str(fid)] = {
+                    "dominant_emotion": dominant, 
+                    "dominant_gender": dom_gen, 
+                    "total_frames": len(history)
+                }
+                
+                writer.writerow([fid, dominant.capitalize(), dom_gen.capitalize(), len(history)])
+                
+        with open(report_json, "w") as f_json:
+            json.dump(json_data, f_json, indent=4)
+            
+        print(f"Reports saved to {report_json} and {report_csv}")
 
 if __name__ == "__main__":
     app = EmotionApp()

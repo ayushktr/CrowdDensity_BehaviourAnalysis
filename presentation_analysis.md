@@ -1,8 +1,8 @@
 # Presentation Psychological Analysis
-**Total Audience Emotional Pulses Analyzed**: 94
-- **Highly Engaged/Interested**: 9.6%
-- **Bored/Disengaged**: 53.2%
-- **Frustrated/Confused**: 37.2%
+**Total Audience Emotional Pulses Analyzed**: 40
+- **Highly Engaged/Interested**: 32.5%
+- **Bored/Disengaged**: 25.0%
+- **Frustrated/Confused**: 42.5%
 
 ## Summary Verdict
-Audience showed signs of boredom. Consider adding more interactive elements or varying your tone.
+Mixed reactions. The presentation held attention but lacked a strong emotional hook.
