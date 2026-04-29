@@ -1,0 +1,30 @@
+{
+    "metadata": {
+        "generated_on": "2026-04-29T18:18:36.589107",
+        "total_unique_people": 1
+    },
+    "people": {
+        "16": {
+            "dominant_emotion": "neutral",
+            "total_frames_analyzed": 4,
+            "timeline": [
+                {
+                    "timestamp": "2026-04-29T18:18:32.805258",
+                    "emotion": "neutral"
+                },
+                {
+                    "timestamp": "2026-04-29T18:18:33.888528",
+                    "emotion": "neutral"
+                },
+                {
+                    "timestamp": "2026-04-29T18:18:34.848229",
+                    "emotion": "neutral"
+                },
+                {
+                    "timestamp": "2026-04-29T18:18:35.859866",
+                    "emotion": "angry"
+                }
+            ]
+        }
+    }
+}
